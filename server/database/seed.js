@@ -5,6 +5,13 @@ async function seed() {
   try {
     console.log('🌱 Starting database seed...');
 
+    // Check if data already exists
+    const existingUsers = db.prepare('SELECT COUNT(*) as count FROM users').get();
+    if (existingUsers.count > 0) {
+      console.log('✅ Database already has data, skipping seed');
+      process.exit(0);
+    }
+
     const password = await bcrypt.hash('password123', 10);
 
     // Create manager
