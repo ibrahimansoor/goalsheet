@@ -1,24 +1,63 @@
-import pg from 'pg';
-import dotenv from 'dotenv';
+import Database from 'better-sqlite3';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-const { Pool } = pg;
+// Create data directory if it doesn't exist
+const dataDir = join(__dirname, '../../data');
+if (!existsSync(dataDir)) {
+  mkdirSync(dataDir, { recursive: true });
+}
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'goalsheet',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
+const dbPath = join(dataDir, 'goalsheet.db');
+const db = new Database(dbPath);
 
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
-});
+// Enable foreign keys
+db.pragma('foreign_keys = ON');
 
+console.log(`📁 Database: ${dbPath}`);
+
+// Create a PostgreSQL-compatible query interface
+const pool = {
+  query: async (text, params = []) => {
+    // Convert PostgreSQL $1, $2 placeholders to SQLite ? placeholders
+    const sqliteQuery = text.replace(/\$(\d+)/g, '?');
+
+    try {
+      // Detect query type
+      if (sqliteQuery.trim().toUpperCase().startsWith('SELECT') ||
+          sqliteQuery.trim().toUpperCase().startsWith('WITH')) {
+        const stmt = db.prepare(sqliteQuery);
+        const rows = stmt.all(...params);
+        return { rows };
+      } else if (sqliteQuery.trim().toUpperCase().startsWith('INSERT') ||
+                 sqliteQuery.trim().toUpperCase().startsWith('UPDATE') ||
+                 sqliteQuery.trim().toUpperCase().startsWith('DELETE')) {
+        const stmt = db.prepare(sqliteQuery);
+        const info = stmt.run(...params);
+        // Return row with id for INSERT with RETURNING clause
+        if (sqliteQuery.includes('RETURNING')) {
+          const lastId = info.lastInsertRowid;
+          return { rows: [{ id: lastId }] };
+        }
+        return { rows: [], rowCount: info.changes };
+      } else {
+        // For other queries (CREATE, DROP, etc.)
+        db.exec(sqliteQuery);
+        return { rows: [] };
+      }
+    } catch (error) {
+      console.error('Query error:', error);
+      console.error('Query:', sqliteQuery);
+      console.error('Params:', params);
+      throw error;
+    }
+  }
+};
+
+// Export pool as default for routes, and db for migrations
 export default pool;
+export { db };
