@@ -7,12 +7,12 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server/index.js",
     "client": "vite",
-    "build": "vite build && npm run db:setup",
+    "build": "vite build",
     "preview": "vite preview",
     "db:setup": "node server/database/migrate.js && node server/database/seed.js",
     "db:migrate": "node server/database/migrate.js",
     "db:seed": "node server/database/seed.js",
-    "start": "node server/index.js"
+    "start": "node server/database/migrate.js && node server/database/seed.js && node server/index.js"
   },
   "keywords": [
     "goal-tracking",

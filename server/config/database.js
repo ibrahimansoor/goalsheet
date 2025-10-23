@@ -10,15 +10,22 @@ const __dirname = dirname(__filename);
 const dataDir = join(__dirname, '../../data');
 if (!existsSync(dataDir)) {
   mkdirSync(dataDir, { recursive: true });
+  console.log('📁 Created data directory:', dataDir);
 }
 
 const dbPath = join(dataDir, 'goalsheet.db');
-const db = new Database(dbPath);
 
-// Enable foreign keys
-db.pragma('foreign_keys = ON');
-
-console.log(`📁 Database: ${dbPath}`);
+// Initialize database
+let db;
+try {
+  db = new Database(dbPath);
+  // Enable foreign keys
+  db.pragma('foreign_keys = ON');
+  console.log('📁 Database connected:', dbPath);
+} catch (error) {
+  console.error('❌ Database connection error:', error);
+  throw error;
+}
 
 // Create a PostgreSQL-compatible query interface
 const pool = {
